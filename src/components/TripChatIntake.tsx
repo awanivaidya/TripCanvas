@@ -874,7 +874,7 @@ export function TripChatIntake() {
       } else {
         say({
           from: "bot",
-          text: "No problem. Type the places again with the state or region, e.g. “Rapleng Valley, Meghalaya”, or add the ones I missed.",
+          text: "No problem. Type the places again with the state or region, e.g. “Hampi, Karnataka”, or add the ones I missed.",
         });
         setStep("destination");
       }
@@ -893,7 +893,7 @@ export function TripChatIntake() {
           value={textInput}
           onChange={setTextInput}
           onSubmit={submitDestination}
-          placeholder="Goa, “Rapleng Valley, Meghalaya”, or “not sure”"
+          placeholder="Kyoto, “Amalfi Coast, Italy”, or “not sure”"
           disabled={suggesting}
         />
       );
