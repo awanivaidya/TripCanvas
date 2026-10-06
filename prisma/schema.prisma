@@ -1,0 +1,177 @@
+// Prisma schema: this file describes our database tables.
+// Running `npx prisma migrate dev` turns it into real SQL tables,
+// and `npx prisma generate` creates a type-safe client we use in code.
+// We add our models (User, Trip, Day, Activity...) in step 3.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Auth.js tables. Auth.js reads and writes these for us. We never touch them
+// directly, except User, which our trips will link to in step 3.
+// Their shape is dictated by Auth.js: https://authjs.dev/getting-started/adapters/prisma
+// ---------------------------------------------------------------------------
+
+// A person using the app.
+model User {
+  id            String    @id @default(cuid()) // cuid() = random unique id like "clx8k2..."
+  name          String? // "?" means the field is optional (can be null)
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String? // Google profile picture URL
+  accounts      Account[] // one user -> many accounts (one-to-many)
+  sessions      Session[]
+  trips         Trip[] // one user -> many trips
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// A login method linked to a user (here: their Google account).
+// Stores Google's tokens. We'll need `refresh_token` later for Google Calendar.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String // "google"
+  providerAccountId String // the user's id *at Google*
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  // The link back to User. onDelete: Cascade = delete the user -> their accounts go too.
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId]) // the same Google account can't be linked twice
+}
+
+// A logged-in browser. The browser keeps a cookie holding `sessionToken`;
+// on every request Auth.js looks it up here to know who you are.
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Used by email "magic link" logins. We don't use it, but the adapter expects it.
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Our app's tables:  User -> Trip -> Day -> Activity   (each arrow = one-to-many)
+// ---------------------------------------------------------------------------
+
+model Trip {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String // e.g. "5 days of food & temples in Tokyo"
+  destination String
+  startDate   DateTime
+  endDate     DateTime
+  adults      Int      @default(1) // was "travelers": renamed in a migration, so old trips keep their count
+  children    Int      @default(0)
+  // How they prefer to travel to/from the destination: "flight" | "train" | "road". Empty = no preference.
+  transportModes String[] @default([])
+  // Where the traveler starts from, e.g. "Dhing, Assam, IN". Confirmed (or typed) by the user in
+  // the chat, and saved, because detecting it from the IP gives a different town on every network.
+  origin      String?
+  budget      String? // free text for now: "cheap", "around $1500"...
+  currency    String? // "INR": the currency the user picked; costs and travel prices use it
+  interests   String[] // Postgres supports arrays: ["food", "temples"]
+  // What they eat, as one sentence from the chat (lib/diet.ts), e.g. "Vegetarian, eggs OK (no meat
+  // or fish). Also: Jain (no onion or garlic)." The planner and the chat AI follow it for every meal.
+  dietary     String?
+  notes       String?  @db.Text // what the user typed in "what do you want to do?"
+  days        Day[]
+  messages    ChatMessage[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId]) // makes "find all trips for this user" fast
+}
+
+model Day {
+  id         String     @id @default(cuid())
+  tripId     String
+  date       DateTime
+  index      Int // 0 = first day, 1 = second day...
+  activities Activity[]
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, index]) // a trip can't have two "day 2"s
+}
+
+model Activity {
+  id           String  @id @default(cuid())
+  dayId        String
+  title        String
+  description  String? @db.Text
+  category     String // "sight" | "food" | "transport" | "lodging" | "activity" | "free"
+  startTime    String? // "09:30". Plain text keeps it simple.
+  durationMin  Int     @default(60)
+  locationName String?
+  estCost      String? // "~$20", "free"
+  // Real opening hours ("09:00" / "18:00"), only set for places with fixed hours (museums,
+  // attractions...). Both null = open anytime. Used to block dragging a card to a closed time.
+  openTime     String?
+  closeTime    String?
+  // Transport legs of the journey from home and back, numbered in travel order across the whole
+  // trip: 1 = first leg leaving home, then 2, 3... and the return legs continue the numbering.
+  // null for everything else (sights, meals, a local cab...). Used to block reordering the journey.
+  journeyStep  Int?
+  // When a transport leg ARRIVES, in the local time of the place it arrives at ("20:30"). Needed
+  // because start + duration is wrong across time zones: a 9h30 flight leaving Delhi at 14:30
+  // lands in Paris at 20:30 Paris time, not at 00:00. Earlier than startTime = the next day.
+  // null for everything else (the card simply ends at start + duration).
+  arrivalTime  String?
+  // The exact place on Google Maps (a restaurant, a museum, the hotel...), found when the card is
+  // planned. Google's rules let us store this id (and nothing else of theirs). null = not one
+  // specific place (a transport leg, free time), so the card has no Google Maps panel.
+  googlePlaceId String?
+  // Where that place is on the map (from Google, by its id), for the "can you get there in time?"
+  // check (lib/geo.ts). A transport card's location is where it ARRIVES. Google's rules allow keeping
+  // coordinates for at most 30 days, so locatedAt says when we got them (trips.ts refreshes old ones).
+  lat           Float?
+  lng           Float?
+  locatedAt     DateTime?
+  // Position inside its day column: 0 = first card, 1 = second...
+  // When you drag, the board re-saves the whole column, so every card gets a fresh number.
+  order        Int
+
+  day Day @relation(fields: [dayId], references: [id], onDelete: Cascade)
+
+  @@index([dayId])
+}
+
+// One message in a trip's chat with the AI. Saved so the conversation is still there when you
+// come back: it starts with the chat that created the trip, then every "change X" request after.
+model ChatMessage {
+  id        String   @id @default(cuid())
+  tripId    String
+  role      String // "user" | "assistant"
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
+}

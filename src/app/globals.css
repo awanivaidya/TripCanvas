@@ -1,26 +1,196 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* Dark mode is a class on <html> ("dark"), set by the script in layout.tsx and the toggle button.
+   This line makes Tailwind's `dark:` prefix follow that class instead of the OS setting, so the
+   user's choice wins. We rarely need `dark:` though: the colors below switch by themselves. */
+@custom-variant dark (&:where(.dark, .dark *));
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* ---------- Design tokens ----------
+   Everything the app looks like comes from these few values. Tailwind turns each --color-*
+   into classes: --color-clay-600 gives bg-clay-600, text-clay-600, border-clay-600...
+   Change a value here and it changes everywhere. */
+@theme {
+  /* Paper and sand: soft sage-tinted off-whites (calm, like a field notebook). */
+  --color-paper: #f5f9f3;
+  --color-sand-50: #eef4eb;
+  --color-sand-100: #e1ebdd;
+  --color-sand-200: #d0deca;
+  --color-sand-300: #b6c7ad;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  /* Surface: cards, dialogs and inputs that sit on top of the paper. */
+  --color-surface: #ffffff;
+
+  /* Ink: text. Softer than pure black, which looks harsh on a tinted page. */
+  --color-ink: #1d201b;
+  --color-ink-soft: #50574d;
+  --color-ink-faint: #7e867a;
+
+  /* Clay (a muted sage; the name "clay" is from its first, terracotta version): the main action color. Buttons, links, highlights. */
+  --color-clay-50: #eef2ee;
+  --color-clay-100: #d9e2da;
+  --color-clay-500: #6d8d72;
+  --color-clay-600: #597a60;
+  --color-clay-700: #4d6a53;
+
+  /* Sage: calm "good news" color (saved, confirmed). */
+  --color-sage-50: #eef3ec;
+  --color-sage-600: #4f6b55;
+
+  /* Shade: the always-dark color behind photos and dialogs (overlays, backdrops, shadows).
+     Separate from ink, because ink turns light in dark mode but an overlay must stay dark. */
+  --color-shade: #1d201b;
+
+  /* Danger: errors and delete buttons. 50 = soft background, 100 = focus ring, 500 = border,
+     600 = solid button (white text on it), 700 = text. */
+  --color-danger-50: #fbeceb;
+  --color-danger-100: #f6d3d0;
+  --color-danger-500: #d2463a;
+  --color-danger-600: #b3261e;
+  --color-danger-700: #9a2119;
+
+  /* Category chips on the activity cards (board/categories.ts): soft background + strong icon. */
+  --color-sky-50: #e6edf3;
+  --color-sky-700: #35577a;
+  --color-plum-50: #efe8f3;
+  --color-plum-700: #644c7e;
+  --color-ochre-50: #f6efdc;
+  --color-ochre-700: #8a6a1f;
+
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+
+  /* ---------- Animations ----------
+     Used as classes: animate-fade-up, animate-fade-in, animate-scale-in, animate-slide-in.
+     "both" keeps the start state before the animation runs (so staggered items don't flash). */
+  --animate-fade-up: fade-up 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-fade-in: fade-in 0.5s ease-out both;
+  --animate-scale-in: scale-in 0.25s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-slide-in: slide-in 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-hero-zoom: hero-zoom 18s ease-out both;
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateX(24px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  /* A very slow zoom on hero photos, like a documentary's "Ken Burns" effect. */
+  @keyframes hero-zoom {
+    from { transform: scale(1.08); }
+    to { transform: scale(1); }
   }
 }
 
+/* ---------- Dark mode ----------
+   The same token names, with night-time values. Every bg-paper, text-ink, border-sand-200...
+   in the app reads these variables, so redefining them here re-colors the whole app at once.
+   The light scales are "flipped": the -50/-100 shades (soft backgrounds) become dark tints and
+   the text shades (ink, clay-700, danger-700...) become light, so text stays readable.
+   clay-600 stays a solid sage, because buttons put white text on it in both themes. */
+.dark {
+  --color-paper: #121511;
+  --color-surface: #1d201b;
+  --color-sand-50: #181b16;
+  --color-sand-100: #252922;
+  --color-sand-200: #30362d;
+  --color-sand-300: #464e42;
+
+  --color-ink: #e8eee5;
+  --color-ink-soft: #b4beaf;
+  --color-ink-faint: #818b7c;
+
+  --color-clay-50: #252c26;
+  --color-clay-100: #354237;
+  --color-clay-500: #6d8d72;
+  --color-clay-600: #5c7e63;
+  --color-clay-700: #9fbaa3;
+
+  --color-sage-50: #1f2a22;
+  --color-sage-600: #9dbda4;
+
+  --color-shade: #080605;
+
+  --color-danger-50: #3b1a17;
+  --color-danger-100: #5c2620;
+  --color-danger-500: #e2665a;
+  --color-danger-600: #b8352a;
+  --color-danger-700: #f39b91;
+
+  --color-sky-50: #1d2a36;
+  --color-sky-700: #9cbcdc;
+  --color-plum-50: #2c2335;
+  --color-plum-700: #c5aedd;
+  --color-ochre-50: #33291a;
+  --color-ochre-700: #e0c27a;
+}
+
+html {
+  color-scheme: light; /* form controls (date pickers, etc.) render in light mode */
+}
+html.dark {
+  color-scheme: dark; /* ...and in dark mode, dark date pickers and scrollbars */
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Headings use the serif. Fraunces' SOFT axis rounds its corners a little: friendlier. */
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+  font-variation-settings: "SOFT" 50;
+  letter-spacing: -0.015em;
+}
+
+/* Respect people who turn animations off in their OS settings (motion can cause nausea). */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- Trip page: the accent comes from the background photo ----------
+   lib/photoAccent.ts finds the photo's main vivid color and sets --accent-* (and --accent-dark-*)
+   on the trip page. These rules point every clay-* class inside the page at them, so buttons,
+   links, chips and highlights all take the photo's color. Each shade keeps the lightness of our
+   green, so contrast (white text on clay-600, clay-700 text) stays the same.
+   The neutral backgrounds and borders (paper, sand-*) get the photo's hue too (--tint-*), just
+   as softly tinted as our sage off-white. Surface (cards, dialogs) and ink (text) stay as they are. */
+.photo-accent {
+  --color-clay-50: var(--accent-50);
+  --color-clay-100: var(--accent-100);
+  --color-clay-500: var(--accent-500);
+  --color-clay-600: var(--accent-600);
+  --color-clay-700: var(--accent-700);
+  --color-paper: var(--tint-paper);
+  --color-sand-50: var(--tint-sand-50);
+  --color-sand-100: var(--tint-sand-100);
+  --color-sand-200: var(--tint-sand-200);
+  --color-sand-300: var(--tint-sand-300);
+}
+.dark .photo-accent {
+  --color-clay-50: var(--accent-dark-50);
+  --color-clay-100: var(--accent-dark-100);
+  --color-clay-500: var(--accent-dark-500);
+  --color-clay-600: var(--accent-dark-600);
+  --color-clay-700: var(--accent-dark-700);
+  --color-paper: var(--tint-dark-paper);
+  --color-sand-50: var(--tint-dark-sand-50);
+  --color-sand-100: var(--tint-dark-sand-100);
+  --color-sand-200: var(--tint-dark-sand-200);
+  --color-sand-300: var(--tint-dark-sand-300);
 }
